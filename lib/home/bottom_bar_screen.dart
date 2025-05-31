@@ -16,6 +16,7 @@ import 'package:x_place/socialMedia/messages.dart';
 import 'package:x_place/socialMedia/reelDiscover.dart';
 import 'package:x_place/socialMedia/socialMedia.dart';
 import 'package:x_place/socialMedia/upload_file.dart';
+import 'package:x_place/socialMedia/upload_post.dart';
 import 'package:x_place/utils/appRoutes.dart';
 import 'package:x_place/utils/appbar.dart';
 import 'package:x_place/utils/const.dart';
@@ -333,11 +334,16 @@ class _BottomBarScreenState extends State<BottomBarScreen>
           height: 300,
           child: Column(
             children: [
-              ListTile(
-                minTileHeight: 30,
-                contentPadding: EdgeInsets.all(5),
-                leading: Image.asset('assets/icons/subscription.png'),
-                title: Text('New Post'),
+              InkWell(
+                onTap: () {
+                  AppRoutes.push(context, UploadPostScreen());
+                },
+                child: ListTile(
+                  minTileHeight: 30,
+                  contentPadding: EdgeInsets.all(5),
+                  leading: Image.asset('assets/icons/subscription.png'),
+                  title: Text('New Post'),
+                ),
               ),
               InkWell(
                 onTap: () {

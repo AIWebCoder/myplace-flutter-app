@@ -6,8 +6,10 @@ import 'package:lottie/lottie.dart';
 // import 'package:x_place/home/IntelligenceArtifical.dart';
 import 'package:x_place/home/intelligenceAtrificial2.dart';
 import 'package:x_place/home/searchScreen.dart';
+import 'package:x_place/providers/chat_provider.dart';
 import 'package:x_place/utils/appRoutes.dart';
 import 'package:x_place/utils/const.dart';
+import 'package:provider/provider.dart';
 
 class AppbarScreen extends StatefulWidget {
   final String title;
@@ -132,8 +134,13 @@ class _AppbarScreenState extends State<AppbarScreen> {
                           widget.showProfile
                               ? InkWell(
                                   onTap: () {
-                                    AppRoutes.push(context,
-                                        Intelligenceatrificial2Screen());
+                                    AppRoutes.push(
+                                      context,
+                                      ChangeNotifierProvider(
+                                        create: (_) => ChatProvider(),
+                                        child: Intelligenceatrificial2Screen(),
+                                      ),
+                                    );
                                   },
                                   child: Container(
                                     height: 35,

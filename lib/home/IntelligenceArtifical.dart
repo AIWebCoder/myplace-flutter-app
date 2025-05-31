@@ -37,8 +37,7 @@ class _IntelligenceartificalScreenState
                     const SizedBox(height: 60),
                     InkWell(
                       onTap: () {
-                        AppRoutes.push(
-                            context, Intelligenceatrificial2Screen());
+                        AppRoutes.push( context, Intelligenceatrificial2Screen());
                       },
                       child: Container(
                         alignment: Alignment.center,

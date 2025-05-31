@@ -1,17 +1,24 @@
+import 'dart:io';
+
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
+import 'package:percent_indicator/linear_percent_indicator.dart';
+import 'package:provider/provider.dart';
 import 'package:readmore/readmore.dart';
 import 'package:video_player/video_player.dart';
+import 'package:x_place/home/landingPage.dart';
 import 'package:x_place/model/post_model.dart';
-import 'package:x_place/socialMedia/reelDiscover.dart';
+import 'package:x_place/services/auth.dart';
+import 'package:x_place/services/reel_service.dart';
 import 'package:x_place/utils/appRoutes.dart';
 import 'package:x_place/utils/appbar.dart';
 import 'package:x_place/utils/const.dart';
 import 'package:x_place/utils/handler.dart';
+import 'package:video_thumbnail/video_thumbnail.dart';
 
 class VideoDetailScreen extends StatefulWidget {
-  final Post post;  // add this
+  final Post post; // add this
 
   const VideoDetailScreen({Key? key, required this.post}) : super(key: key);
 
@@ -21,15 +28,21 @@ class VideoDetailScreen extends StatefulWidget {
 
 class _VideoDetailScreenState extends State<VideoDetailScreen> {
   // int _currentPage = 1;
-  
+
   int _current = 0;
   late VideoPlayerController _videoPlayerController;
   ChewieController? _chewieController;
+  List<Post> reels = [];
+  List<Post> posts = [];
+  bool isLoading = true;
+
   @override
   void initState() {
     super.initState();
 
-    _videoPlayerController = VideoPlayerController.networkUrl( Uri.parse(widget.post.videoUrl), );
+    _videoPlayerController = VideoPlayerController.networkUrl(
+      Uri.parse(widget.post.videoUrl),
+    );
 
     _videoPlayerController.initialize().then((_) {
       setState(() {
@@ -41,6 +54,7 @@ class _VideoDetailScreenState extends State<VideoDetailScreen> {
         );
       });
     });
+    loadPosts();
   }
 
   // _videoPlayer() async {}
@@ -52,6 +66,28 @@ class _VideoDetailScreenState extends State<VideoDetailScreen> {
     super.dispose();
   }
 
+  Future<void> loadPosts() async {
+    final authProvider = Provider.of<Auth>(context, listen: false);
+    final token = authProvider.token;
+
+    try {
+      final reelsData = await PostService.fetchPosts(token, postType: "1");
+      final postsData = await PostService.fetchPosts(token, postType: "0");
+
+      print('this is the post Data : , $postsData');
+
+      if (!mounted) return;
+
+      setState(() {
+        reels = reelsData;
+        posts = postsData;
+        isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => isLoading = false);
+    }
+  }
   final CarouselSliderController _controller = CarouselSliderController();
   @override
   Widget build(BuildContext context) {
@@ -66,15 +102,14 @@ class _VideoDetailScreenState extends State<VideoDetailScreen> {
       child: Scaffold(
         backgroundColor: Colors.transparent,
         // drawer: const DrawerScreen(),
-        appBar: const PreferredSize(
+        appBar: PreferredSize(
             preferredSize: Size.fromHeight(kToolbarHeight),
             child: AppbarScreen(
-              isBack: true,
-              showLogo: false,
-              showProfile: false,
-              showSearch: false,
-              title: 'Fear Filter',
-            )),
+                isBack: true,
+                showLogo: false,
+                showProfile: false,
+                showSearch: false,
+                title: widget.post.caption)),
         body: SingleChildScrollView(
           child: Column(
             children: [
@@ -97,7 +132,7 @@ class _VideoDetailScreenState extends State<VideoDetailScreen> {
               Divider(color: greyColor, thickness: 1),
               Container(
                 margin: EdgeInsets.only(left: 10, right: 10),
-                child: const Row(
+                child: Row(
                   children: [
                     Row(
                       children: [
@@ -106,7 +141,7 @@ class _VideoDetailScreenState extends State<VideoDetailScreen> {
                           size: 20,
                         ),
                         SizedBox(width: 5),
-                        Text('150k'),
+                        Text('${widget.post.likes}'),
                         SizedBox(width: 15),
                         Icon(
                           Icons.remove_red_eye,
@@ -128,7 +163,7 @@ class _VideoDetailScreenState extends State<VideoDetailScreen> {
               Container(
                 margin: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                 alignment: Alignment.topLeft,
-                child: const Column(
+                child: Column(
                   mainAxisAlignment: MainAxisAlignment.start,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -139,7 +174,9 @@ class _VideoDetailScreenState extends State<VideoDetailScreen> {
                     ),
                     SizedBox(height: 5),
                     Text(
-                      'Dorem ipsum dolor sit amet, consectetur adipiscing elit. Nunc vulputate libero et velit interdum, ac aliquet odio mattis.',
+                      widget.post.caption.isNotEmpty
+                          ? widget.post.caption
+                          : 'No description provided.',
                       style: TextStyle(fontSize: 12),
                     )
                   ],
@@ -222,48 +259,45 @@ class _VideoDetailScreenState extends State<VideoDetailScreen> {
                 height: 180,
                 width: double.infinity,
                 child: CarouselSlider(
-                  items: [1, 9, 4].map((i) {
+                  items: posts.asMap().entries.map((entry) {
+                    Post post = entry.value;
                     return GestureDetector(
-                        onTap: () {
-                          AppRoutes.push(context, ReelDiscoverScreen());
-                        },
-                        child: Stack(
-                          children: [
-                            Container(
-                              decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(20),
-                                  image: DecorationImage(
-                                      fit: BoxFit.fill,
-                                      image: AssetImage(
-                                        "assets/sliders/$i.jpg",
-                                      ))),
-
-                              // child: Image.asset("assets/sliders/$i.png",
-                              //     fit: BoxFit.fill),
-                            ),
-                            Positioned(top: 10, left: 10, child: Icon(Icons.hd))
-                          ],
-                        ));
+                      onTap: () {
+                        AppRoutes.push(context, VideoDetailScreen(post: post));
+                      },
+                      child: Stack(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: CarouselVideoThumbnail(videoUrl: post.videoUrl),
+                          ),
+                          const Positioned(
+                            top: 10,
+                            left: 10,
+                            child: Icon(Icons.hd, color: Colors.white),
+                          ),
+                        ],
+                      ),
+                    );
                   }).toList(),
                   carouselController: _controller,
                   options: CarouselOptions(
-                    onPageChanged: (index, reason) {
-                      setState(() {
-                        _current = index;
-                      });
-                    },
-                    height: 400,
-                    aspectRatio: 16 / 9,
-                    viewportFraction: 0.7,
-                    initialPage: 0,
-                    enableInfiniteScroll: true,
-                    reverse: false,
-                    autoPlay: true,
-                    enlargeCenterPage: true,
-                    enlargeFactor: 0.3,
-                  ),
-                ),
-              ),
+                            onPageChanged: (index, reason) {
+                              setState(() {
+                                _current = index;
+                              });
+                            },
+                            aspectRatio: 16 / 9,
+                            viewportFraction: 0.7,
+                            initialPage: 0,
+                            enableInfiniteScroll: true,
+                            reverse: false,
+                            autoPlay: false,
+                            enlargeCenterPage: true,
+                            enlargeFactor: 0.3,
+                          ),
+                        ),
+                      ),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [1, 2, 1].asMap().entries.map((entry) {
@@ -278,7 +312,8 @@ class _VideoDetailScreenState extends State<VideoDetailScreen> {
                         shape: BoxShape.circle,
                         color: _current == entry.key
                             ? Theme.of(context).primaryColor
-                            : whiteColor.withValues(alpha: (0.4 * 255).toDouble()),
+                            : whiteColor.withValues(
+                                alpha: (0.4 * 255).toDouble()),
                       ),
                     ),
                   );
@@ -286,15 +321,7 @@ class _VideoDetailScreenState extends State<VideoDetailScreen> {
               ),
               SizedBox(height: 10),
               sectionTitle("Recent"),
-              thumbnailRow([
-                "p3.jpg",
-                "p1.jpg",
-                "p4.jpg",
-                "p1.jpg",
-                "p3.jpg",
-                "p4.jpg",
-                "p1.jpg",
-              ], 'Jennifer'),
+              thumbnailVideo(posts, true),
             ],
           ),
         ),
@@ -347,66 +374,202 @@ class _VideoDetailScreenState extends State<VideoDetailScreen> {
     );
   }
 
-  Widget thumbnailRow(List<String> images, name) {
-    return SizedBox(
-      height: 120,
+  // Widget thumbnailRow(List<String> images, name) {
+  //   return SizedBox(
+  //     height: 120,
+  //     child: ListView.builder(
+  //       scrollDirection: Axis.horizontal,
+  //       itemCount: images.length,
+  //       itemBuilder: (context, index) {
+  //         return Stack(
+  //           children: [
+  //             // Image Container
+  //             Opacity(
+  //               opacity: index == 0 ? 0.5 : 1.0,
+  //               child: Container(
+  //                 margin: const EdgeInsets.only(right: 10, left: 10),
+  //                 width: 100,
+  //                 decoration: BoxDecoration(
+  //                   borderRadius: BorderRadius.circular(8),
+  //                   image: DecorationImage(
+  //                     image: AssetImage("assets/${images[index]}"),
+  //                     fit: BoxFit.cover,
+  //                   ),
+  //                 ),
+  //               ),
+  //             ),
+
+  //             // Add Icon (Only on First Image)
+  //             if (index == 0)
+  //               Positioned(
+  //                 top: 10,
+  //                 left: 15,
+  //                 child: Container(
+  //                   padding: EdgeInsets.all(4),
+  //                   decoration: BoxDecoration(
+  //                     color: whiteColor,
+  //                     shape: BoxShape.circle,
+  //                   ),
+  //                   child: Icon(
+  //                     Icons.add,
+  //                     color: blackColor,
+  //                     size: 18,
+  //                   ),
+  //                 ),
+  //               ),
+
+  //             Positioned(
+  //               bottom: 5,
+  //               left: 15,
+  //               child: Container(
+  //                 padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+  //                 decoration: BoxDecoration(),
+  //                 child: Text(
+  //                   name,
+  //                   style: TextStyle(color: whiteColor, fontSize: 12),
+  //                 ),
+  //               ),
+  //             ),
+  //           ],
+  //         );
+  //       },
+  //     ),
+  //   );
+  // }
+
+  Widget thumbnailVideo(List<Post> posts, bool showProgress) {
+    return Container(
+      margin: const EdgeInsets.only(left: 12),
+      height: 200,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        itemCount: images.length,
+        itemCount: posts.length,
         itemBuilder: (context, index) {
-          return Stack(
-            children: [
-              // Image Container
-              Opacity(
-                opacity: index == 0 ? 0.5 : 1.0,
-                child: Container(
-                  margin: const EdgeInsets.only(right: 10, left: 10),
-                  width: 100,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    image: DecorationImage(
-                      image: AssetImage("assets/${images[index]}"),
-                      fit: BoxFit.cover,
-                    ),
-                  ),
+          final post = posts[index];
+          return GestureDetector(
+            onTap: () {
+              // AppRoutes.push(context, VideoDetailScreen(post: null,));
+            },
+            child: Stack(
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(right: 12),
+                  width: 150,
+                  child: VideoThumbnailWidget(videoUrl: post.videoUrl),
                 ),
-              ),
-
-              // Add Icon (Only on First Image)
-              if (index == 0)
                 Positioned(
-                  top: 10,
-                  left: 15,
-                  child: Container(
-                    padding: EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: whiteColor,
-                      shape: BoxShape.circle,
-                    ),
+                    bottom: MediaQuery.of(context).size.width / 7,
+                    left: MediaQuery.of(context).size.width / 7,
                     child: Icon(
-                      Icons.add,
-                      color: blackColor,
-                      size: 18,
-                    ),
-                  ),
-                ),
-
-              Positioned(
-                bottom: 5,
-                left: 15,
-                child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(),
-                  child: Text(
-                    name,
-                    style: TextStyle(color: whiteColor, fontSize: 12),
-                  ),
-                ),
-              ),
-            ],
+                      Icons.play_circle_outline_outlined,
+                      size: 30,
+                    )),
+                showProgress
+                    ? Positioned(
+                        bottom: 6,
+                        // left: 4,
+                        child: Center(
+                          child: LinearPercentIndicator(
+                            // width: 100.0,
+                            width: MediaQuery.of(context).size.width * 0.38,
+                            lineHeight: 3.0,
+                            percent: 0.9,
+                            // fillColor: primaryColor,
+                            // linearStrokeCap: LinearStrokeCap.roundAll,
+                            progressColor: primaryColor,
+                          ),
+                        ))
+                    : SizedBox()
+              ],
+            ),
           );
         },
       ),
+    );
+  }
+}
+class CarouselVideoThumbnail extends StatefulWidget {
+  final String videoUrl;
+
+  const CarouselVideoThumbnail({Key? key, required this.videoUrl}) : super(key: key);
+
+  @override
+  _CarouselVideoThumbnailState createState() => _CarouselVideoThumbnailState();
+}
+
+class _CarouselVideoThumbnailState extends State<CarouselVideoThumbnail> {
+  String? _thumbnailPath;
+  bool _hasError = false;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _generateThumbnail();
+  }
+
+  Future<void> _generateThumbnail() async {
+    try {
+      final thumb = await VideoThumbnail.thumbnailFile(
+        video: widget.videoUrl,
+        imageFormat: ImageFormat.JPEG,
+        maxWidth: 150, // you can adjust this size
+        quality: 50,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _thumbnailPath = thumb;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _hasError = true;
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_hasError) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          color: Colors.black,
+          alignment: Alignment.center,
+          child: const Icon(Icons.error, color: Colors.red, size: 40),
+        ),
+      );
+    }
+
+    if (_isLoading) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          color: Colors.black,
+          child: const Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
+
+    // Show thumbnail image if loaded successfully
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: _thumbnailPath != null
+          ? Image.file(
+              File(_thumbnailPath!),
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+            )
+          : Container(
+              color: Colors.black,
+              alignment: Alignment.center,
+              child: const Icon(Icons.error, color: Colors.red, size: 40),
+            ),
     );
   }
 }
