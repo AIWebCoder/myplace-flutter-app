@@ -1,13 +1,15 @@
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 class ApiConfig {
   // API Gemini
-  static const String geminiApiKey = 'AIzaSyAzkk9yXHgTHtPRPu6nt45cWKgy3ql0AL4';
-  static const String defaultModel = 'gemini-2.0-flash';
-  static const double temperature = 0.7;
-  
-  // ElevenLabs API pour la synthèse vocale
-  static const String elevenLabsApiKey = 'sk_20ddad4670be0469a645bc84e461c0990cec1444bad8bc2d';
-  static const String defaultVoiceId = '21m00Tcm4TlvDq8ikWAM'; // Rachel
-  
-  // Configuration pour le mode hors ligne
-  static const bool useLocalDataWhenOffline = true;
+  static final String geminiApiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
+  static final String defaultModel = dotenv.env['DEFAULT_GEMINI_MODEL'] ?? 'gemini-2.0-flash';
+  static final double temperature = double.tryParse(dotenv.env['TEMPERATURE'] ?? '0.7') ?? 0.7;
+
+  // ElevenLabs API
+  static final String elevenLabsApiKey = dotenv.env['ELEVENLABS_API_KEY'] ?? '';
+  static final String defaultVoiceId = dotenv.env['DEFAULT_VOICE_ID'] ?? '';
+
+  // Offline mode
+  static final bool useLocalDataWhenOffline = dotenv.env['USE_LOCAL_DATA_WHEN_OFFLINE']?.toLowerCase() == 'true';
 }
