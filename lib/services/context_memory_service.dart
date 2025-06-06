@@ -107,4 +107,16 @@ class ContextMemoryService {
     
     return false;
   }
+  
+  // Vider la mémoire à court terme
+  void clearShortTermMemory() {
+    _shortTermMemory.clear();
+  }
+  
+  // Vider toutes les mémoires
+  void clearAllMemory() {
+    _shortTermMemory.clear();
+    _mediumTermMemory.clear();
+    _longTermMemory.clear();
+  }
 }

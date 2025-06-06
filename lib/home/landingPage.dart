@@ -493,7 +493,79 @@ class _LandingPageState extends State<LandingPage> with TickerProviderStateMixin
     );
   }
 
+  // Widget topTendencyVideo(List<Post> posts, bool showProgress) {
+  //   return Container(
+  //     margin: const EdgeInsets.only(left: 12),
+  //     height: 220,
+  //     child: ListView.builder(
+  //       scrollDirection: Axis.horizontal,
+  //       itemCount: posts.length,
+  //       itemBuilder: (context, index) {
+  //         final post = posts[index];
+
+  //         return GestureDetector(
+  //           onTap: () {
+  //             AppRoutes.push(
+  //                 context,
+  //                 VideoDetailScreen(
+  //                   post: post,
+  //                 ));
+  //           },
+  //           child: Stack(
+  //             children: [
+  //               Positioned(
+  //                 bottom: 0,
+  //                 left: 0,
+  //                 child: Text(
+  //                   '${index + 1}',
+  //                   style: TextStyle(
+  //                     fontSize: 100,
+  //                     fontWeight: FontWeight.bold,
+  //                     foreground: Paint()
+  //                       ..style = PaintingStyle.stroke
+  //                       ..strokeWidth = 2
+  //                       ..color = primaryColor,
+  //                   ),
+  //                 ),
+  //               ),
+  //               Container(
+  //                 width: 170,
+  //                 alignment: Alignment.topRight,
+  //                 child: Container(
+  //                   alignment: Alignment.topRight,
+  //                   margin: const EdgeInsets.only(left: 20, right: 5),
+  //                   width: 120,
+  //                   height: 140,
+  //                   child: VideoThumbnailWidget(videoUrl: post.videoUrl),
+  //                 ),
+  //               ),
+  //             ],
+  //           ),
+  //         );
+  //       },
+  //     ),
+  //   );
+  // }
+  
   Widget topTendencyVideo(List<Post> posts, bool showProgress) {
+    if (posts.isEmpty) {
+      return Container(
+        height: 220,
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.videocam_off, color: Colors.grey, size: 48),
+            SizedBox(height: 8),
+            Text(
+              "No trending videos yet",
+              style: TextStyle(color: Colors.grey, fontSize: 16),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       margin: const EdgeInsets.only(left: 12),
       height: 220,
@@ -502,7 +574,6 @@ class _LandingPageState extends State<LandingPage> with TickerProviderStateMixin
         itemCount: posts.length,
         itemBuilder: (context, index) {
           final post = posts[index];
-
           return GestureDetector(
             onTap: () {
               AppRoutes.push(
@@ -548,6 +619,24 @@ class _LandingPageState extends State<LandingPage> with TickerProviderStateMixin
   }
 
   Widget thumbnailVideo(List<Post> posts, bool showProgress) {
+    if (posts.isEmpty) {
+      return Container(
+        height: 200,
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: const [
+            Icon(Icons.videocam_off, color: Colors.grey, size: 48),
+            SizedBox(height: 8),
+            Text(
+              "No videos to display",
+              style: TextStyle(color: Colors.grey, fontSize: 14),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       margin: const EdgeInsets.only(left: 12),
       height: 200,
@@ -558,7 +647,7 @@ class _LandingPageState extends State<LandingPage> with TickerProviderStateMixin
           final post = posts[index];
           return GestureDetector(
             onTap: () {
-              // AppRoutes.push(context, VideoDetailScreen(post: null,));
+              // AppRoutes.push(context, VideoDetailScreen(post: null));
             },
             child: Stack(
               children: [
@@ -568,28 +657,25 @@ class _LandingPageState extends State<LandingPage> with TickerProviderStateMixin
                   child: VideoThumbnailWidget(videoUrl: post.videoUrl),
                 ),
                 Positioned(
-                    bottom: MediaQuery.of(context).size.width / 7,
-                    left: MediaQuery.of(context).size.width / 7,
-                    child: Icon(
-                      Icons.play_circle_outline_outlined,
-                      size: 30,
-                    )),
-                showProgress
-                    ? Positioned(
-                        bottom: 6,
-                        // left: 4,
-                        child: Center(
-                          child: LinearPercentIndicator(
-                            // width: 100.0,
-                            width: MediaQuery.of(context).size.width * 0.38,
-                            lineHeight: 3.0,
-                            percent: 0.9,
-                            // fillColor: primaryColor,
-                            // linearStrokeCap: LinearStrokeCap.roundAll,
-                            progressColor: primaryColor,
-                          ),
-                        ))
-                    : SizedBox()
+                  bottom: MediaQuery.of(context).size.width / 7,
+                  left: MediaQuery.of(context).size.width / 7,
+                  child: const Icon(
+                    Icons.play_circle_outline_outlined,
+                    size: 30,
+                  ),
+                ),
+                if (showProgress)
+                  Positioned(
+                    bottom: 6,
+                    child: Center(
+                      child: LinearPercentIndicator(
+                        width: MediaQuery.of(context).size.width * 0.38,
+                        lineHeight: 3.0,
+                        percent: 0.9,
+                        progressColor: primaryColor,
+                      ),
+                    ),
+                  )
               ],
             ),
           );
@@ -599,6 +685,24 @@ class _LandingPageState extends State<LandingPage> with TickerProviderStateMixin
   }
 
   Widget selectionVideo(List<Post> reels, bool showProgress) {
+    if (reels.isEmpty) {
+      return Container(
+        height: 200,
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: const [
+            Icon(Icons.video_library_outlined, color: Colors.grey, size: 48),
+            SizedBox(height: 8),
+            Text(
+              "No selections available",
+              style: TextStyle(color: Colors.grey, fontSize: 14),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       margin: const EdgeInsets.only(left: 12),
       height: 200,
@@ -607,7 +711,6 @@ class _LandingPageState extends State<LandingPage> with TickerProviderStateMixin
         itemCount: reels.length,
         itemBuilder: (context, index) {
           final reel = reels[index];
-
           return GestureDetector(
             onTap: () {
               AppRoutes.push(context, VideoDetailScreen(post: reel));
@@ -624,8 +727,7 @@ class _LandingPageState extends State<LandingPage> with TickerProviderStateMixin
                   child: Center(
                     child: Container(
                       decoration: BoxDecoration(
-                        color: Colors.black
-                            .withValues(alpha: (0.6 * 255).toDouble()),
+                        color: Colors.black.withOpacity(0.6),
                         shape: BoxShape.circle,
                       ),
                       padding: const EdgeInsets.all(10),
@@ -642,9 +744,10 @@ class _LandingPageState extends State<LandingPage> with TickerProviderStateMixin
                   left: 0,
                   right: 10,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: (0.5 * 255).toDouble()),
+                      color: Colors.black.withOpacity(0.5),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
@@ -666,6 +769,7 @@ class _LandingPageState extends State<LandingPage> with TickerProviderStateMixin
       ),
     );
   }
+
 }
 
 class VideoThumbnailWidget extends StatefulWidget {

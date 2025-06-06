@@ -1,24 +1,27 @@
-// ignore_for_file: avoid_print
-
 import 'package:flutter/material.dart';
-import '../models/chat_message.dart';
-import '../models/content_recommendation.dart';
+import '../model/chat_message.dart';
+import '../model/content_recommendation.dart';
+import '../model/post_model.dart';
 import '../services/gemini_service.dart';
 import '../services/speech_service.dart';
 import '../services/context_memory_service.dart';
 import '../services/audio_spectrum_service.dart';
+import '../services/rag_service.dart';
 
 class ChatProvider with ChangeNotifier {
   final GeminiService _geminiService = GeminiService();
   final SpeechService _speechService = SpeechService();
   final ContextMemoryService _contextMemory = ContextMemoryService();
-  final AudioSpectrumService _audioSpectrum = AudioSpectrumService(); // Nouveau service
-  final List<ChatMessage> _messages = [];
+  final AudioSpectrumService _audioSpectrum = AudioSpectrumService();
+  
+  List<ChatMessage> _messages = [];
   bool _isListening = false;
   bool _isSpeaking = false;
+  List<String> _conversationContext = [];
 
   // État de suivi de la conversation
   String _currentTopic = '';
+  bool _awaitingUserFeedback = false;
 
   List<ChatMessage> get messages => _messages;
   bool get isListening => _isListening;
@@ -28,7 +31,7 @@ class ChatProvider with ChangeNotifier {
   GeminiService get geminiService => _geminiService;
   SpeechService get speechService => _speechService;
   ContextMemoryService get contextMemory => _contextMemory;
-  AudioSpectrumService get audioSpectrum => _audioSpectrum; // Nouveau getter pour le service audio
+  AudioSpectrumService get audioSpectrum => _audioSpectrum;
 
   ChatProvider() {
     _initialize();
@@ -36,6 +39,11 @@ class ChatProvider with ChangeNotifier {
 
   Future<void> _initialize() async {
     await _speechService.initialize();
+    // Ajouter un message de bienvenue
+    addMessage(ChatMessage(
+      role: MessageRole.assistant,
+      content: "Salut ! 😊 Je suis Myla, ton assistante X Place. Comment puis-je t'aider à découvrir du super contenu aujourd'hui ?",
+    ));
   }
 
   Future<void> sendMessage(String message) async {
@@ -43,197 +51,117 @@ class ChatProvider with ChangeNotifier {
 
     // Ajouter le message à la mémoire contextuelle
     _contextMemory.addToShortTermMemory(message);
+    _conversationContext.add("Utilisateur: $message");
+
+    // Garder seulement les 10 derniers échanges pour le contexte
+    if (_conversationContext.length > 20) {
+      _conversationContext = _conversationContext.sublist(_conversationContext.length - 20);
+    }
 
     // Ajouter le message de l'utilisateur
-    _messages.add(ChatMessage(
+    addMessage(ChatMessage(
       content: message,
       role: MessageRole.user,
     ));
-    notifyListeners();
 
     // Ajouter un message "en cours" pour l'assistant
-    _messages.add(ChatMessage(
+    addMessage(ChatMessage(
       content: '',
       role: MessageRole.assistant,
       isProcessing: true,
     ));
-    notifyListeners();
 
-    String response = "";
     try {
-      // Obtenir le contexte actuel pour améliorer la réponse
-      final context = _contextMemory.getCurrentContext();
-
-      // Obtenir la réponse de Gemini avec le contexte enrichi
-      response = await _geminiService.sendMessageWithContext(message, context);
-
-      // Détecter le sujet de la conversation si nécessaire
-      _detectAndUpdateTopic(message, response);
-
-      // Analyser la réponse pour y chercher des recommandations
-      final isRecommendationRequest = _isRecommendationRequest(message.toLowerCase()) ||
-          _containsRecommendationMarkers(response);
-      final List<ContentRecommendation> recommendations =
-          isRecommendationRequest ? _parseRecommendations(response) : [];
-
-      // Remplacer le message "en cours" par la vraie réponse
-      _messages.removeLast();
-
-      if (recommendations.isNotEmpty) {
-        // Si des recommandations ont été détectées
-        _messages.add(ChatMessage.withRecommendations(
-          response,
-          recommendations,
-        ));
-
-        // Enregistrer cette interaction comme liée aux recommandations
-        if (_currentTopic.isEmpty) {
-          _currentTopic = "Recommandations";
-          _contextMemory.summarizeToMediumTerm(_currentTopic);
-        }
-      } else {
-        // Sinon, message normal
-        _messages.add(ChatMessage(
-          content: response,
-          role: MessageRole.assistant,
-        ));
+      // Utiliser le système RAG pour générer la réponse
+      final ragResponse = await RAGService.generateRAGResponse(message, _conversationContext);
+      
+      // Supprimer le message de traitement
+      _messages.removeWhere((msg) => msg.isProcessing);
+      
+      // Nettoyer et valider la réponse
+      String cleanResponse = ragResponse.text.trim();
+      
+      // S'assurer que la réponse est complète et naturelle
+      if (cleanResponse.isEmpty) {
+        cleanResponse = _generateContextualFallback(message);
       }
-
-      // Si la réponse semble demander un feedback utilisateur
-      if (_containsFeedbackRequest(response)) {
-      }
-
-      // Lire la réponse à haute voix si activé
-      if (_speechService.isTtsEnabled && response.isNotEmpty) {
+      
+      // Ajouter la réponse à l'historique
+      _conversationContext.add("Myla: $cleanResponse");
+      
+      // Ajouter la réponse de l'assistant avec les posts recommandés
+      addMessage(ChatMessage(
+        content: cleanResponse,
+        role: MessageRole.assistant,
+        recommendedPosts: ragResponse.recommendedPosts,
+      ));
+      
+      // Synthèse vocale si activée
+      if (_speechService.isTtsEnabled) {
         _isSpeaking = true;
-        // Démarrer l'analyse du spectre en mode parole
         _audioSpectrum.startAnalysis(isSpeaking: true);
         notifyListeners();
-
+        
         try {
-          await _speechService.speak(response);
+          await _speechService.speak(cleanResponse);
         } catch (e) {
           print("Erreur lors de la synthèse vocale: $e");
         } finally {
           _isSpeaking = false;
-          // Arrêter l'analyse du spectre
           _audioSpectrum.stopAnalysis();
           notifyListeners();
         }
       }
+      
     } catch (e) {
-      // En cas d'erreur, afficher un message d'erreur
-      _messages.removeLast();
-      _messages.add(ChatMessage(
-        content: "Je suis désolé, une erreur s'est produite lors du traitement de votre demande.",
+      print('Erreur lors de l\'envoi du message: $e');
+      
+      // Supprimer le message de traitement
+      _messages.removeWhere((msg) => msg.isProcessing);
+      
+      // Message d'erreur avec fallback contextuel
+      final fallbackMessage = _generateContextualFallback(message);
+      addMessage(ChatMessage(
+        content: fallbackMessage,
         role: MessageRole.assistant,
       ));
-      print('Erreur lors de l\'envoi du message: $e');
-      response = "Je suis désolé, une erreur s'est produite lors du traitement de votre demande.";
     }
 
     notifyListeners();
   }
 
-  void _detectAndUpdateTopic(String userMessage, String botResponse) {
-    if (_currentTopic.isEmpty) {
-      if (_isAboutMovies(userMessage, botResponse)) {
-        _currentTopic = "Films et séries";
-        _contextMemory.summarizeToMediumTerm(_currentTopic);
-      }
-    }
-    else if (!_contextMemory.isRelatedToRecentConversations(userMessage)) {
-      _currentTopic = "";
+  // Génération de réponses de fallback contextuelles
+  String _generateContextualFallback(String userMessage) {
+    final messageLower = userMessage.toLowerCase();
+    
+    if (messageLower.contains('salut') || messageLower.contains('bonjour') || messageLower.contains('hello')) {
+      return "Salut ! 😊 Je suis Myla, ton assistante sur X Place ! Comment ça va ? Tu cherches quelque chose en particulier ?";
+    } else if (messageLower.contains('aide') || messageLower.contains('help')) {
+      return "Bien sûr, je suis là pour t'aider ! Tu peux me demander du contenu par type, chercher des posts spécifiques, ou juste explorer ce qu'on a de cool sur X Place ! 🎬";
+    } else if (messageLower.contains('merci')) {
+      return "De rien ! 😊 C'est toujours un plaisir de t'aider ! Tu veux découvrir autre chose ?";
+    } else if (messageLower.contains('vidéo') || messageLower.contains('contenu') || messageLower.contains('post')) {
+      return "Super ! On a plein de contenu génial sur X Place ! Tu cherches quelque chose en particulier ? Vidéos, images, posts premium... ? 🎥";
+    } else {
+      return "Hmm, je vois que tu t'intéresses à ça ! Dis-moi plus précisément ce que tu aimerais voir et je vais te trouver le contenu parfait sur X Place ! ✨";
     }
   }
 
-  bool _isAboutMovies(String userMessage, String botResponse) {
-    final combined = "${userMessage.toLowerCase()} ${botResponse.toLowerCase()}";
-    final movieTerms = [
-      'film', 'série', 'cinéma', 'épisode', 'saison',
-      'acteur', 'actrice', 'réalisateur', 'regarder', 'netflix'
-    ];
-
-    return movieTerms.any((term) => combined.contains(term));
+  void addMessage(ChatMessage message) {
+    _messages.add(message);
+    notifyListeners();
   }
 
-  bool _containsRecommendationMarkers(String response) {
-    final lowerResponse = response.toLowerCase();
-    return (lowerResponse.contains('voici') || lowerResponse.contains('je te recommande')) &&
-        (lowerResponse.contains('film') || lowerResponse.contains('série'));
-  }
-
-  bool _containsFeedbackRequest(String response) {
-    final lowerResponse = response.toLowerCase();
-    final feedbackPatterns = [
-      'qu\'en penses-tu', 'est-ce que cela te convient',
-      'cela t\'intéresse', 'souhaites-tu',
-      'préférerais-tu', 'aimerais-tu', 'veux-tu'
-    ];
-
-    return feedbackPatterns.any((pattern) => lowerResponse.contains(pattern));
-  }
-
-  bool _isRecommendationRequest(String message) {
-    final lowerMessage = message.toLowerCase().trim();
-    
-    final explicitTriggers = [
-      'recommand', 'suggère', 'conseil',
-      'quels films', 'quelles séries', 'quel film', 'quelle série',
-      'propose', 'montre', 'films similaires', 'film similaire',
-      'séries similaires', 'série similaire', 'que regarder',
-      'à voir', 'idée', 'envie de voir', 'film à voir',
-      'top films', 'meilleures séries', 'meilleur film'
-    ];
-    
-    final contentTerms = [
-      'film', 'série', 'documentaire', 'épisode',
-      'netflix', 'disney', 'prime video', 'amazon prime', 'canal+', 'apple tv'
-    ];
-    
-    final nonTriggers = [
-      'bonjour', 'salut', 'hello', 'coucou', 'bonsoir',
-      'comment ça va', 'comment vas-tu', 'ça va',
-      'merci', 'au revoir', 'à bientôt', 'ok'
-    ];
-    
-    if (nonTriggers.any((trigger) => lowerMessage == trigger)) {
-      return false;
-    }
-    
-    if (explicitTriggers.any((trigger) => lowerMessage.contains(trigger))) {
-      return true;
-    }
-    
-    final actionTerms = ['cherche', 'veux', 'aimerais', 'souhaite', 'besoin', 'connais', 'sais'];
-    
-    bool hasActionTerm = actionTerms.any((term) => lowerMessage.contains(term));
-    bool hasContentTerm = contentTerms.any((term) => lowerMessage.contains(term));
-    
-    if (hasActionTerm && hasContentTerm) {
-      return true;
-    }
-    
-    return false;
-  }
-
-  List<ContentRecommendation> _parseRecommendations(String response) {
-    bool containsRecommendations = response.toLowerCase().contains('recommand') || 
-        (response.contains('**') && 
-        (response.contains('film') || response.contains('série')));
-    
-    if (containsRecommendations) {
-      try {
-        return ContentRecommendation.parseFromText(response);
-      } catch (e) {
-        print('Erreur lors de l\'analyse des recommandations: $e');
-      }
-    }
-    
-    return [];
+  void clearChat() {
+    _messages.clear();
+    _conversationContext.clear();
+    _contextMemory.clearShortTermMemory();
+    notifyListeners();
   }
 
   Future<void> startListening() async {
+    if (_isListening) return;
+    
     _isListening = true;
     // Démarrer l'analyse du spectre en mode écoute
     _audioSpectrum.startAnalysis(isSpeaking: false);
@@ -248,33 +176,107 @@ class ChatProvider with ChangeNotifier {
     notifyListeners();
     
     try {
-      await _speechService.startListening((text) {
-        // Mise à jour du message en temps réel
+      print('🎯 Démarrage de l\'écoute avec arrêt automatique intelligent');
+      
+      await _speechService.startListening((recognizedText) {
+        // Vérifier si c'est un message de finalisation automatique
+        if (recognizedText.startsWith("__FINALIZE__:")) {
+          final finalText = recognizedText.substring("__FINALIZE__:".length);
+          print('🏁 Finalisation automatique détectée: "$finalText"');
+          _finalizeAutomatically(finalText);
+          return;
+        }
+        
+        // Mise à jour du message en temps réel si on est encore en écoute
         if (_isListening && _messages.isNotEmpty) {
           final lastMessage = _messages.last;
           if (lastMessage.role == MessageRole.user && lastMessage.isProcessing) {
             // Mettre à jour le contenu du message sans créer un nouveau message
             _messages[_messages.length - 1] = ChatMessage(
-              content: text,
+              content: recognizedText,
               role: MessageRole.user,
               isProcessing: true,
             );
             notifyListeners();
+            
+            print('📝 Mise à jour en temps réel: "$recognizedText"');
           }
         }
       });
     } catch (e) {
-      print("Erreur startListening: $e");
-      if (_isListening) {
-        _isListening = false;
-        notifyListeners();
+      print('❌ Erreur lors de l\'écoute: $e');
+      _isListening = false;
+      _audioSpectrum.stopAnalysis();
+      
+      // Supprimer le message en cours si erreur
+      if (_messages.isNotEmpty && _messages.last.isProcessing) {
+        _messages.removeLast();
       }
+      
+      notifyListeners();
     }
   }
 
-// Nombre minimum de mots pour synthétiser
+  // Nouvelle méthode pour la finalisation automatique
+  void _finalizeAutomatically(String finalText) async {
+    if (!_isListening) return;
+    
+    print('🤖 Finalisation automatique du message: "$finalText"');
+    
+    _isListening = false;
+    _audioSpectrum.stopAnalysis();
+    
+    // Finaliser le message utilisateur et l'envoyer au bot
+    if (_messages.isNotEmpty && 
+        _messages.last.role == MessageRole.user && 
+        _messages.last.isProcessing) {
+      
+      _messages.removeLast();
+      
+      if (finalText.isNotEmpty && finalText.length > 1) {
+        print('📨 Message finalisé automatiquement et envoyé: "$finalText"');
+        
+        // Ajouter le message finalisé de l'utilisateur
+        addMessage(ChatMessage(
+          content: finalText,
+          role: MessageRole.user,
+        ));
+        
+        // Traiter le message avec le système RAG
+        _processUserMessage(finalText);
+      } else {
+        print('⚠️ Message trop court ignoré: "$finalText"');
+      }
+    }
+    
+    notifyListeners();
+  }
 
-  Future<void> stopListening() async {
+  // Vérifier si le texte semble complet (gardé pour compatibilité mais moins utilisé)
+  bool _isTextComplete(String text) {
+    if (text.trim().isEmpty) return false;
+    
+    // Vérifier la ponctuation de fin
+    final endsWithPunctuation = text.trim().endsWith('.') || 
+                               text.trim().endsWith('!') || 
+                               text.trim().endsWith('?');
+    
+    // Vérifier la longueur (au moins 3 mots)
+    final hasMinimumWords = text.trim().split(' ').length >= 3;
+    
+    // Mots-clés de fin de phrase
+    final endWords = ['merci', 'voilà', 'c\'est tout', 'fini', 'terminé'];
+    final endsWithEndWord = endWords.any((word) => text.toLowerCase().trim().endsWith(word));
+    
+    return (endsWithPunctuation && hasMinimumWords) || 
+           (endsWithEndWord && hasMinimumWords) ||
+           (hasMinimumWords && text.length > 20);
+  }
+
+  // Finaliser l'écoute manuellement (pour le bouton stop)
+  void _finalizeListening() async {
+    if (!_isListening) return;
+    
     try {
       await _speechService.stopListening();
     } catch (e) {
@@ -282,7 +284,6 @@ class ChatProvider with ChangeNotifier {
     }
     
     _isListening = false;
-    // Arrêter l'analyse du spectre
     _audioSpectrum.stopAnalysis();
     
     // Finaliser le message utilisateur et l'envoyer au bot
@@ -293,239 +294,124 @@ class ChatProvider with ChangeNotifier {
       String userMessage = _messages.last.content.trim();
       _messages.removeLast();
       
-      if (userMessage.isNotEmpty) {
+      if (userMessage.isNotEmpty && userMessage.length > 1) {
+        print('📨 Message finalisé manuellement et envoyé: "$userMessage"');
+        
         // Ajouter le message finalisé de l'utilisateur
-        _messages.add(ChatMessage(
+        addMessage(ChatMessage(
           content: userMessage,
           role: MessageRole.user,
         ));
-        notifyListeners();
         
-        // Ajouter un message "en cours" pour l'assistant
-        _messages.add(ChatMessage(
-          content: '',
-          role: MessageRole.assistant,
-          isProcessing: true,
-        ));
-        notifyListeners();
-        
-        // Réinitialiser les variables de streaming de réponse
-        
-        // Obtenir la réponse de Gemini
-        _sendMessageWithStreamingResponse(userMessage);
+        // Traiter le message avec le système RAG
+        _processUserMessage(userMessage);
+      } else {
+        print('⚠️ Message trop court ignoré: "$userMessage"');
       }
     }
     
     notifyListeners();
   }
 
-  // Nouvelle méthode pour envoyer un message et traiter la réponse en streaming
-  Future<void> _sendMessageWithStreamingResponse(String message) async {
-    try {
-      final context = _contextMemory.getCurrentContext();
-      final response = await _geminiService.sendMessageWithContext(message, context);
-      
-      // Détecter le sujet de la conversation si nécessaire
-      _detectAndUpdateTopic(message, response);
-      
-      // Analyser la réponse pour y chercher des recommandations
-      final isRecommendationRequest = 
-          _isRecommendationRequest(message.toLowerCase()) ||
-          _containsRecommendationMarkers(response);
-      
-      final List<ContentRecommendation> recommendations =
-          isRecommendationRequest ? _parseRecommendations(response) : [];
-      
-      // Remplacer le message "en cours"
-      _messages.removeLast();
-      
-      // Traiter la réponse
-      if (recommendations.isNotEmpty) {
-        // Si des recommandations ont été détectées
-        _messages.add(ChatMessage.withRecommendations(
-          response,
-          recommendations,
-        ));
-        
-        if (_currentTopic.isEmpty) {
-          _currentTopic = "Recommandations";
-          _contextMemory.summarizeToMediumTerm(_currentTopic);
-        }
-        
-        // Synthétiser vocalement toute la réponse
-        if (_speechService.isTtsEnabled) {
-          _isSpeaking = true;
-          notifyListeners();
-          
-          // Extraire le texte principal avant les recommandations
-          final mainText = _extractMainText(response);
-          
-          try {
-            await _speechService.speak(mainText);
-          } catch (e) {
-            print("Erreur lors de la synthèse vocale: $e");
-          } finally {
-            _isSpeaking = false;
-            notifyListeners();
-          }
-        }
-      } else {
-        // Message normal
-        _messages.add(ChatMessage(
-          content: response,
-          role: MessageRole.assistant,
-        ));
-        
-        // Synthétiser la réponse par phrases ou segments
-        if (_speechService.isTtsEnabled) {
-          _streamTextToSpeech(response);
-        }
-      }
-      
-      notifyListeners();
-    } catch (e) {
-      // Gestion d'erreur
-      _messages.removeLast();
-      _messages.add(ChatMessage(
-        content: "Je suis désolé, une erreur s'est produite lors du traitement de votre demande.",
-        role: MessageRole.assistant,
-      ));
-      print('Erreur lors de l\'envoi du message: $e');
-      notifyListeners();
-    }
-  }
-
-  // Nouvelle méthode pour synthétiser le texte par segments
-  Future<void> _streamTextToSpeech(String text) async {
-    if (text.isEmpty) return;
+  Future<void> stopListening() async {
+    if (!_isListening) return;
     
-    _isSpeaking = true;
-    notifyListeners();
-    
-    try {
-      // Diviser le texte en phrases ou segments
-      final segments = _splitTextIntoSegments(text);
-      
-      // Synthétiser chaque segment
-      for (final segment in segments) {
-        if (segment.trim().isEmpty) continue;
-        
-        try {
-          await _speechService.speak(segment);
-          
-          // Attendre un court instant entre les segments
-          await Future.delayed(Duration(milliseconds: 300));
-        } catch (e) {
-          print("Erreur lors de la synthèse vocale d'un segment: $e");
-        }
-      }
-    } catch (e) {
-      print("Erreur lors du streaming TTS: $e");
-    } finally {
-      _isSpeaking = false;
-      notifyListeners();
-    }
-  }
-
-  // Méthode pour diviser un texte en segments
-  List<String> _splitTextIntoSegments(String text) {
-    // Diviser par phrases (points, points d'exclamation, points d'interrogation)
-    final pattern = RegExp(r'[.!?]+');
-    final segments = text.split(pattern);
-    
-    // Filtrer les segments vides et les limiter à une taille maximale
-    final result = <String>[];
-    
-    // Si le texte est très court, retourner tel quel
-    if (segments.length <= 1 && text.length < 100) {
-      return [text];
-    }
-    
-    String currentSegment = "";
-    
-    for (int i = 0; i < segments.length; i++) {
-      final segment = segments[i].trim();
-      if (segment.isEmpty) continue;
-      
-      // Ajouter la ponctuation de fin si ce n'est pas le dernier segment
-      final punctuation = i < segments.length - 1 ? 
-          text.substring(text.indexOf(segment) + segment.length, text.indexOf(segment) + segment.length + 1) : 
-          "";
-      
-      if (currentSegment.isEmpty) {
-        currentSegment = segment + punctuation;
-      } else if (("$currentSegment $segment").split(" ").length <= 15) {
-        // Combiner les segments courts
-        currentSegment += " $segment$punctuation";
-      } else {
-        // Ajouter le segment accumulé et commencer un nouveau
-        result.add(currentSegment);
-        currentSegment = segment + punctuation;
-      }
-    }
-    
-    // Ajouter le dernier segment s'il en reste un
-    if (currentSegment.isNotEmpty) {
-      result.add(currentSegment);
-    }
-    
-    return result;
-  }
-
-  // Extraire le texte principal d'une réponse (avant les recommandations)
-  String _extractMainText(String response) {
-    // Chercher le premier marqueur de recommandation
-    final patterns = [
-      "Voici mes recommandations",
-      "Je vous recommande",
-      "**",
-      "Voici quelques"
-    ];
-    
-    String mainText = response;
-    
-    for (final pattern in patterns) {
-      final index = response.indexOf(pattern);
-      if (index > 0 && index < mainText.length) {
-        mainText = response.substring(0, index);
-      }
-    }
-    
-    return mainText;
+    print('🛑 Arrêt manuel de l\'écoute par l\'utilisateur');
+    _finalizeListening();
   }
 
   Future<void> stopSpeaking() async {
-    if (_isSpeaking) {
-      await _speechService.stopSpeaking();
-      _isSpeaking = false;
-      // Arrêter l'analyse du spectre
-      _audioSpectrum.stopAnalysis();
-      notifyListeners();
-    }
-  }
-
-  void clearChat() {
-    _messages.clear();
+    if (!_isSpeaking) return;
+    
+    await _speechService.stopSpeaking();
+    _isSpeaking = false;
+    _audioSpectrum.stopAnalysis();
     notifyListeners();
   }
-  
+
+  // Ajouter une méthode pour les suggestions contextuelles
   List<String> getContextualSuggestions() {
-    if (_messages.isEmpty) {
-      return ["Recommande-moi un film", "Que puis-je regarder ce soir?"];
-    }
-    
-    if (_currentTopic == "Films et séries") {
-      return [
-        "Des recommandations plus récentes",
-        "Quelque chose de similaire mais différent",
-        "Un classique du même genre"
-      ];
-    }
-    
     return [
-      "Recommande-moi un film",
-      "Quelles sont les nouvelles séries populaires?",
-      "Je cherche un bon thriller"
+      "Contenu populaire",
+      "Vidéos récentes", 
+      "Posts premium",
+      "Contenu gratuit",
+      "Nouveautés",
+      "Featured"
     ];
+  }
+
+  // Traiter le message utilisateur avec le système RAG
+  Future<void> _processUserMessage(String message) async {
+    // Ajouter un message "en cours" pour l'assistant
+    addMessage(ChatMessage(
+      content: '',
+      role: MessageRole.assistant,
+      isProcessing: true,
+    ));
+
+    try {
+      // Utiliser le système RAG pour générer la réponse
+      final ragResponse = await RAGService.generateRAGResponse(message, _conversationContext);
+      
+      // Supprimer le message de traitement
+      _messages.removeWhere((msg) => msg.isProcessing);
+      
+      // Nettoyer et valider la réponse
+      String cleanResponse = ragResponse.text.trim();
+      
+      if (cleanResponse.isEmpty) {
+        cleanResponse = _generateContextualFallback(message);
+      }
+      
+      // Ajouter la réponse à l'historique
+      _conversationContext.add("Myla: $cleanResponse");
+      
+      // Ajouter la réponse de l'assistant avec les posts recommandés
+      addMessage(ChatMessage(
+        content: cleanResponse,
+        role: MessageRole.assistant,
+        recommendedPosts: ragResponse.recommendedPosts,
+      ));
+      
+      // Synthèse vocale si activée
+      if (_speechService.isTtsEnabled) {
+        _isSpeaking = true;
+        _audioSpectrum.startAnalysis(isSpeaking: true);
+        notifyListeners();
+        
+        try {
+          await _speechService.speak(cleanResponse);
+        } catch (e) {
+          print("Erreur lors de la synthèse vocale: $e");
+        } finally {
+          _isSpeaking = false;
+          _audioSpectrum.stopAnalysis();
+          notifyListeners();
+        }
+      }
+      
+    } catch (e) {
+      print('Erreur lors du traitement du message: $e');
+      
+      // Supprimer le message de traitement
+      _messages.removeWhere((msg) => msg.isProcessing);
+      
+      // Message d'erreur
+      addMessage(ChatMessage(
+        content: _generateContextualFallback(message),
+        role: MessageRole.assistant,
+      ));
+    }
+
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _isListening = false;
+    _isSpeaking = false;
+    _audioSpectrum.stopAnalysis();
+    super.dispose();
   }
 }

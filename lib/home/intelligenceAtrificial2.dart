@@ -1,10 +1,13 @@
+// ignore_for_file: deprecated_member_use, library_private_types_in_public_api
+
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
-import 'package:x_place/utils/const.dart';
-import '../providers/chat_provider.dart';
-import '../models/chat_message.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:x_place/home/videoPage.dart';
+import '../utils/const.dart';
+import '../providers/chat_provider.dart';
+import '../model/chat_message.dart';
 import 'dart:math';
 
 class Intelligenceatrificial2Screen extends StatefulWidget {
@@ -15,12 +18,14 @@ class Intelligenceatrificial2Screen extends StatefulWidget {
       _Intelligenceatrificial2ScreenState();
 }
 
-class _Intelligenceatrificial2ScreenState
-    extends State<Intelligenceatrificial2Screen> with SingleTickerProviderStateMixin {
+class _Intelligenceatrificial2ScreenState extends State<Intelligenceatrificial2Screen> with SingleTickerProviderStateMixin {
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   late AnimationController _animationController;
   final List<double> _simulatedSpectrumData = List.filled(8, 0.0);
+  
+  // Amplitude constante pour le TTS
+  final double _constantAmplitude = 0.7;
 
   @override
   void initState() {
@@ -29,7 +34,6 @@ class _Intelligenceatrificial2ScreenState
       vsync: this,
       duration: Duration(milliseconds: 600),
     );
-
     _startSpectrumSimulation();
   }
 
@@ -148,6 +152,14 @@ class _Intelligenceatrificial2ScreenState
                   );
                 },
               ),
+              IconButton(
+                icon: Icon(Icons.refresh, color: whiteColor),
+                tooltip: 'Nouvelle conversation',
+                onPressed: () {
+                  final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+                  chatProvider.clearChat();
+                },
+              ),
             ],
           ),
         ),
@@ -168,12 +180,15 @@ class _Intelligenceatrificial2ScreenState
                     return Stack(
                       alignment: Alignment.center,
                       children: [
+                        // Cercles boom avec intensité constante pendant TTS
                         if (isActive)
                           ...List.generate(5, (index) {
                             return BoomCircle(
                               size: 70 + (index * 10),
-                              color: chatProvider.isListening ? Colors.blue : Colors.green,
-                              intensity: _simulatedSpectrumData[index % _simulatedSpectrumData.length],
+                              color: chatProvider.isSpeaking ? Colors.green : Colors.blue,
+                              intensity: chatProvider.isSpeaking 
+                                  ? _constantAmplitude
+                                  : _simulatedSpectrumData[index % _simulatedSpectrumData.length],
                               delay: index * 100,
                             );
                           }),
@@ -185,21 +200,40 @@ class _Intelligenceatrificial2ScreenState
                           duration: Duration(milliseconds: 300),
                           builder: (context, double scale, child) {
                             final boomScale = isActive 
-                                ? scale * (0.95 + _getAverageAmplitude() * 0.15) 
+                                ? scale * (0.95 + (chatProvider.isSpeaking 
+                                    ? _constantAmplitude * 0.15
+                                    : _getAverageAmplitude() * 0.15))
                                 : scale;
                                 
                             return Transform.scale(
                               scale: boomScale,
-                              child: Lottie.asset(
-                                'assets/lottie/avatar.json',
-                                height: 80,
-                                width: 80,
-                                fit: BoxFit.contain,
-                                animate: true,
+                              child: ColorFiltered(
+                                colorFilter: chatProvider.isSpeaking
+                                    ? ColorFilter.mode(
+                                        Colors.green,
+                                        BlendMode.modulate,
+                                      )
+                                    : isActive
+                                        ? ColorFilter.mode(
+                                            Colors.blue,
+                                            BlendMode.modulate,
+                                          )
+                                        : ColorFilter.mode(
+                                            Colors.white,
+                                            BlendMode.modulate,
+                                          ),
+                                child: Lottie.asset(
+                                  'assets/lottie/avatar.json',
+                                  height: 80,
+                                  width: 80,
+                                  fit: BoxFit.contain,
+                                  animate: true,
+                                ),
                               ),
                             );
                           },
                         ),
+                        // Glow effect vert constant pendant TTS
                         if (isActive)
                           AnimatedContainer(
                             duration: Duration(milliseconds: 300),
@@ -209,10 +243,16 @@ class _Intelligenceatrificial2ScreenState
                               shape: BoxShape.circle,
                               boxShadow: [
                                 BoxShadow(
-                                  color: (chatProvider.isListening ? Colors.blue : Colors.green)
-                                      .withOpacity(_getAverageAmplitude() * 0.4),
-                                  blurRadius: 20 * _getAverageAmplitude(),
-                                  spreadRadius: 5 * _getAverageAmplitude(),
+                                  color: (chatProvider.isSpeaking ? Colors.green : Colors.blue)
+                                      .withOpacity(chatProvider.isSpeaking 
+                                          ? _constantAmplitude * 0.5
+                                          : _getAverageAmplitude() * 0.4),
+                                  blurRadius: chatProvider.isSpeaking 
+                                      ? 20 * _constantAmplitude
+                                      : 20 * _getAverageAmplitude(),
+                                  spreadRadius: chatProvider.isSpeaking 
+                                      ? 5 * _constantAmplitude
+                                      : 5 * _getAverageAmplitude(),
                                 ),
                               ],
                             ),
@@ -227,10 +267,6 @@ class _Intelligenceatrificial2ScreenState
               child: Consumer<ChatProvider>(
                 builder: (context, chatProvider, child) {
                   final messages = chatProvider.messages;
-                  
-                  if (messages.isNotEmpty) {
-                    _scrollToBottom();
-                  }
                   
                   return messages.isEmpty
                     ? Center(
@@ -348,31 +384,64 @@ class _Intelligenceatrificial2ScreenState
               style: TextStyle(color: Colors.grey[600], fontSize: 10),
             ),
           ),
-          if (!isUser && message.recommendations.isNotEmpty)
+          // Posts recommandés (système RAG) avec redirection vers VideoDetailScreen
+          if (!isUser && message.recommendedPosts.isNotEmpty)
             Container(
-              height: 200,
               margin: EdgeInsets.only(bottom: 16),
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: message.recommendations.length,
-                padding: const EdgeInsets.symmetric(vertical: 8.0),
-                itemBuilder: (context, index) {
-                  final recommendation = message.recommendations[index];
-                  return Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 4.0),
-                    child: _buildImprovedRecommendationCard(recommendation),
-                  );
-                },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8.0, left: 5.0),
+                    child: Text(
+                      'Contenu recommandé:',
+                      style: TextStyle(
+                        color: Colors.grey[400],
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    height: 240,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: message.recommendedPosts.length,
+                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      itemBuilder: (context, index) {
+                        final post = message.recommendedPosts[index];
+                        return Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 4.0),
+                          child: GestureDetector(
+                            onTap: () {
+                              // Redirection vers VideoPage avec le post
+                              // Navigator.push( context, MaterialPageRoute( builder: (context) => VideoDetailScreen()));
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => VideoDetailScreen(
+                                    post: post, // Passer le post sélectionné
+                                  ),
+                                ),
+                              );
+                            },
+                            child: _buildPostRecommendationCard(post),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ),
             ),
         ],
       ),
     );
   }
-  
-  Widget _buildImprovedRecommendationCard(recommendation) {
+
+  Widget _buildPostRecommendationCard(post) {
     return Container(
-      width: 220,
+      width: 200,
       margin: EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: Colors.grey[850],
@@ -389,96 +458,196 @@ class _Intelligenceatrificial2ScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Image/Thumbnail du post
           ClipRRect(
             borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
             child: Stack(
               children: [
                 Container(
-                  height: 110,
+                  height: 120,
                   width: double.infinity,
-                  color: Colors.grey[900],
-                  child: Center(
-                    child: Icon(
-                      recommendation.type == 'film' ? Icons.movie : Icons.tv,
-                      color: Colors.white,
-                      size: 40,
-                    ),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[900],
                   ),
+                  child: post.primaryThumbnail != null
+                    ? Image.network(
+                        post.primaryThumbnail!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            color: Colors.grey[800],
+                            child: Icon(
+                              post.primaryMediaType == 'video' ? Icons.play_circle_filled : Icons.image,
+                              color: Colors.white,
+                              size: 40,
+                            ),
+                          );
+                        },
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Container(
+                            color: Colors.grey[800],
+                            child: Center(
+                              child: CircularProgressIndicator(
+                                color: primaryColor,
+                                strokeWidth: 2,
+                              ),
+                            ),
+                          );
+                        },
+                      )
+                    : Container(
+                        color: Colors.grey[800],
+                        child: Icon(
+                          post.primaryMediaType == 'video' ? Icons.play_circle_filled : Icons.image,
+                          color: Colors.white,
+                          size: 40,
+                        ),
+                      ),
                 ),
+                // Badge du type de contenu
                 Positioned(
-                  bottom: 8,
+                  top: 8,
                   right: 8,
                   child: Container(
-                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: primaryColor,
-                      borderRadius: BorderRadius.circular(12),
+                      color: post.primaryMediaType == 'video' ? Colors.red : Colors.blue,
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      recommendation.type.toUpperCase(),
+                      post.primaryMediaType == 'video' ? 'VIDÉO' : 'IMAGE',
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 10,
+                        fontSize: 8,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
                 ),
+                // Badge premium si le contenu est payant
+                if (post.isPaidContent)
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    child: Container(
+                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.amber,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'PREMIUM',
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontSize: 8,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Badge qualité si thumbnail du post disponible
+
+                if (post.thumbnail != null && post.thumbnail!.isNotEmpty)
+                  Positioned(
+                    bottom: 8,
+                    left: 8,
+                    child: Container(
+                      padding: EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.8),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        'HD',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 8,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                // Overlay play button pour les vidéos
+                if (post.primaryMediaType == 'video')
+                  Positioned.fill(
+                    child: Center(
+                      child: Container(
+                        padding: EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.6),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.play_arrow,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.all(10.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  recommendation.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Colors.white, 
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
+          // Contenu du post
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(10.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Titre du post
+                  Text(
+                    post.displayText,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white, 
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    if (recommendation.year.isNotEmpty)
+                  const SizedBox(height: 6),
+                  // Informations supplémentaires
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Prix ou gratuit
                       Container(
                         padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: Colors.grey[800],
+                          color: post.isPaidContent ? Colors.amber.withOpacity(0.2) : Colors.green.withOpacity(0.2),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
-                          recommendation.year,
+                          post.isPaidContent ? '${post.price}€' : 'GRATUIT',
                           style: TextStyle(
-                            color: Colors.grey[400],
+                            color: post.isPaidContent ? Colors.amber : Colors.green,
                             fontSize: 10,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),
-                    Row(
-                      children: [
-                        Icon(Icons.star, color: Colors.amber, size: 14),
-                        SizedBox(width: 4),
-                        Text(
-                          recommendation.rating > 0 
-                            ? recommendation.rating.toString()
-                            : "N/A",
-                          style: TextStyle(
-                            color: Colors.grey[400],
-                            fontSize: 12,
-                          ),
+                      // Indicateur featured
+                      if (post.isFeatured)
+                        Icon(
+                          Icons.star,
+                          color: Colors.amber,
+                          size: 16,
                         ),
-                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  // Nombre d'attachments
+                  Text(
+                    '${post.attachments.length} fichier${post.attachments.length > 1 ? 's' : ''}',
+                    style: TextStyle(
+                      color: Colors.grey[400],
+                      fontSize: 10,
                     ),
-                  ],
-                ),
-              ],
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -511,6 +680,12 @@ class _Intelligenceatrificial2ScreenState
                 ),
                 minLines: 1,
                 maxLines: 4,
+                onSubmitted: (text) {
+                  if (text.trim().isNotEmpty) {
+                    chatProvider.sendMessage(text);
+                    _textController.clear();
+                  }
+                },
               ),
               const SizedBox(height: 8),
               Row(

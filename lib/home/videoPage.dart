@@ -1,3 +1,5 @@
+// ignore_for_file: library_private_types_in_public_api, avoid_print
+
 import 'dart:io';
 
 import 'package:carousel_slider/carousel_slider.dart';
@@ -491,7 +493,7 @@ class _VideoDetailScreenState extends State<VideoDetailScreen> {
 class CarouselVideoThumbnail extends StatefulWidget {
   final String videoUrl;
 
-  const CarouselVideoThumbnail({Key? key, required this.videoUrl}) : super(key: key);
+  const CarouselVideoThumbnail({super.key, required this.videoUrl});
 
   @override
   _CarouselVideoThumbnailState createState() => _CarouselVideoThumbnailState();

@@ -1,10 +1,11 @@
+// ignore_for_file: avoid_print
+
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../config/api_config.dart';
 
 class GeminiService {
   // ID utilisateur actuel
-  String? _userId;
   
   // Historique de conversation pour le contexte
   final List<Map<String, String>> _conversationHistory = [];
@@ -14,7 +15,6 @@ class GeminiService {
   
   // Setter pour l'ID utilisateur
   Future<void> setUserId(String userId) async {
-    _userId = userId;
   }
   
   // Méthode principale pour envoyer un message

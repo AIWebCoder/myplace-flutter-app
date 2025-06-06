@@ -36,9 +36,7 @@ class _BottomBarScreenState extends State<BottomBarScreen>
   final List<Widget> _screens = [
     LandingPage(),
     ReelDiscoverScreen(),
-    // _showBottomSheet(),
     SocialMediaScreen(),
-    // IntelligenceartificalScreen(),
     MessagesScreen(),
   ];
 
@@ -203,30 +201,15 @@ class _BottomBarScreenState extends State<BottomBarScreen>
           ),
           child: Scaffold(
             backgroundColor: Colors.transparent,
-            drawer: isLargeScreen
-                ? null
-                : index == 3
-                    ? _socialDrawer(isLargeScreen)
-                    : _buildDrawer(isLargeScreen),
+            drawer: isLargeScreen ? null : index == 3 ? _socialDrawer(isLargeScreen) : _buildDrawer(isLargeScreen),
             appBar: index == 1
-                ? PreferredSize(
-                    preferredSize: Size.fromHeight(0),
-                    child: SizedBox(),
-                  )
-                : const PreferredSize(
-                    preferredSize: Size.fromHeight(kToolbarHeight),
-                    child: AppbarScreen(),
-                  ),
+                ? PreferredSize( preferredSize: Size.fromHeight(0), child: SizedBox())
+                : const PreferredSize( preferredSize: Size.fromHeight(kToolbarHeight), child: AppbarScreen()),
             extendBody: true,
             body: Row(
               children: [
                 if (isLargeScreen)
-                  SizedBox(
-                    width: 250,
-                    child: index == 3
-                        ? _socialDrawer(isLargeScreen)
-                        : _buildDrawer(isLargeScreen),
-                  ),
+                  SizedBox( width: 250, child: index == 3 ? _socialDrawer(isLargeScreen) : _buildDrawer(isLargeScreen), ),
                 Expanded(
                   child: NotificationListener<ScrollNotification>(
                     onNotification: onScrollNotification,
@@ -261,13 +244,9 @@ class _BottomBarScreenState extends State<BottomBarScreen>
                 filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                 child: Container(
                   decoration: BoxDecoration(
-                    color:
-                        Colors.white.withValues(alpha: (0.1 * 255).toDouble()),
+                    color:Colors.white.withValues(alpha: (0.1 * 255).toDouble()),
                     border: Border(
-                      top: BorderSide(
-                          color: Colors.white
-                              .withValues(alpha: (0.2 * 255).toDouble()),
-                          width: 1),
+                      top: BorderSide( color: Colors.white.withValues(alpha: (0.2 * 255).toDouble()), width: 1),
                     ),
                   ),
                   child: AnimatedBottomNavigationBar.builder(
@@ -279,26 +258,17 @@ class _BottomBarScreenState extends State<BottomBarScreen>
                         height: 25,
                         width: 25,
                         child: Center(
-                          child: Image.asset(
-                            _iconPaths[i],
-                            height: 25,
-                            color: isActive ? primaryColor : Colors.white,
-                            width: 25,
-                          ),
+                          child: Image.asset( _iconPaths[i], height: 25, color: isActive ? primaryColor : Colors.white, width: 25, ),
                         ),
                       );
                     },
-                    activeIndex: index == 2
-                        ? -1
-                        : index >= 3
-                            ? index - 1
-                            : index,
+                    activeIndex: index,
                     gapLocation: GapLocation.center,
                     onTap: (i) {
                       setState(() {
-                        index = i > 1 ? i + 1 : i;
+                        index = i;
                       });
-                    },
+                    }
                   ),
                 ),
               ),
@@ -734,3 +704,4 @@ class _BottomBarScreenState extends State<BottomBarScreen>
     );
   }
 }
+

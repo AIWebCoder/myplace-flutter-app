@@ -69,6 +69,16 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
 
   Future<void> uploadFile(PlatformFile file) async {
     try {
+
+      // Show a loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+
       final formData = FormData.fromMap({
         "file": await MultipartFile.fromFile(file.path!, filename: file.name),
       });
@@ -79,15 +89,19 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
         options: _dioOptions(),
       );
 
+      // Dismiss loading dialog
+      Navigator.of(context, rootNavigator: true).pop();
+
       final attachmentID = response.data['attachmentID'];
+      
       if (response.statusCode == 200 && attachmentID != null) {
         setState(() => fileId = attachmentID);
-        print('✅ Uploaded. File ID: $fileId');
+        _showSuccessDialog("Upload Complete", "Your video has been uploaded.");
       } else {
-        print('❌ Upload failed: ${response.statusCode}');
+        _showErrorDialog("Upload Failed", "Server responded with status ${response.statusCode}.");
       }
     } catch (e) {
-      print('❌ Upload error: $e');
+      _showErrorDialog("Upload Error", "An error occurred while uploading: $e");
     }
   }
 
@@ -119,20 +133,58 @@ class _UploadFileScreenState extends State<UploadFileScreen> {
       print("📥 Raw response: ${response.data}");
 
       if (response.statusCode == 200) {
-        print("✅ Post saved successfully.");
+        _showSuccessDialog("Post Published", "Your post has been successfully saved." , popScreenAfter: true);
       } else {
-        print("❌ Failed to save post: ${response.statusCode}");
+        _showErrorDialog("Save Failed", "Server responded with status ${response.statusCode}.");
       }
     } catch (e) {
       if (e is DioException) {
         print("❌ DioException: ${e.response?.statusCode}");
-        print("📥 Server response: ${e.response?.data}");
+        _showErrorDialog("Save Error", "Server responded with: ${e.response?.data ?? 'Unknown error'}");
       } else {
         print("❌ Unexpected error: $e");
+        _showErrorDialog("Unexpected Error", "$e");
       }
     }
   }
 
+  void _showSuccessDialog(String title, String message, {bool popScreenAfter = false}) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              if (popScreenAfter) {
+                Navigator.of(context).pop(); 
+              }
+            },
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showErrorDialog(String title, String message) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+  
   @override
   Widget build(BuildContext context) {
     return Scaffold(

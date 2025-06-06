@@ -6,11 +6,11 @@ class InfoDialog extends StatelessWidget {
   final String buttonText;
 
   const InfoDialog({
-    Key? key,
+    super.key,
     required this.title,
     required this.message,
     this.buttonText = "OK",
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

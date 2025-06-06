@@ -2,14 +2,9 @@
 
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter/material.dart';
-// import 'package:overlapped_carousel/overlapped_carousel.dart';
 import 'package:percent_indicator/linear_percent_indicator.dart';
-import 'package:x_place/home/videoPage.dart';
 import 'package:x_place/model/reel_model.dart';
-// import 'package:x_place/socialMedia/reelDiscover.dart';
-import 'package:x_place/utils/appRoutes.dart';
 import 'package:x_place/utils/const.dart';
-import 'package:x_place/services/reel_service.dart';
 
 class LandingPage extends StatefulWidget {
   const LandingPage({super.key});
@@ -89,19 +84,19 @@ class _LandingPageState extends State<LandingPage> with TickerProviderStateMixin
     super.dispose();
   }
   
-  Future<void> loadReels() async {
-    try {
-      final data = await ReelService.fetchReels(context);
-      print('output of reels fetch  : $data');
-      setState(() {
-        reels = data;
-        isLoading = false;
-      });
-    } catch (e) {
-      print(e);
-      setState(() => isLoading = false);
-    }
-  }
+  // Future<void> loadReels() async {
+  //   try {
+  //     final data = await ReelService.fetchReels(context);
+  //     print('output of reels fetch  : $data');
+  //     setState(() {
+  //       reels = data;
+  //       isLoading = false;
+  //     });
+  //   } catch (e) {
+  //     print(e);
+  //     setState(() => isLoading = false);
+  //   }
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -840,7 +835,7 @@ class _LandingPageState extends State<LandingPage> with TickerProviderStateMixin
                         bottom: 6,
                         // left: 4,
                         child: Center(
-                          child: new LinearPercentIndicator(
+                          child: LinearPercentIndicator(
                             // width: 100.0,
                             width: MediaQuery.of(context).size.width * 0.38,
                             lineHeight: 3.0,

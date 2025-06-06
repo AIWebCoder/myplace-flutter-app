@@ -38,6 +38,7 @@ dependencies:
   audioplayers: ^6.4.0
   speech_to_text: ^7.0.0
   flutter_dotenv: ^5.2.1
+  flutter_tts: ^4.2.3
   
 dev_dependencies:
   flutter_test:
@@ -57,5 +58,6 @@ flutter:
     - assets/
     - assets/sliders/
     - assets/lottie/
+    - assets/lottie/avatar.json
     - assets/icons/
     - .env

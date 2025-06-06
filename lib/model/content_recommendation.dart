@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 
 class ContentRecommendation {
   final String id;
@@ -47,7 +46,7 @@ class ContentRecommendation {
         final yearMatch = yearRegex.firstMatch(titleText);
         if (yearMatch != null && yearMatch.group(1) != null) {
           year = yearMatch.group(1)!;
-          title = title.replaceAll('(${year})', '').trim();
+          title = title.replaceAll('($year)', '').trim();
         }
         
         // Détecter si c'est une série

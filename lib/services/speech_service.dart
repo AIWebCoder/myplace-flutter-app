@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+// ignore_for_file: depend_on_referenced_packages, avoid_print, deprecated_member_use
+
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
@@ -15,11 +16,7 @@ class SpeechService {
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _isInitialized = false;
   bool _isSpeaking = false;
-  bool _isTtsEnabled = true;
-
-  // Getters
-  bool get isTtsEnabled => _isTtsEnabled;
-  set isTtsEnabled(bool value) => _isTtsEnabled = value;
+  bool isTtsEnabled = true;
   bool get isSpeaking => _isSpeaking;
   bool get isListening => _speechToText.isListening;
 
@@ -60,7 +57,7 @@ class SpeechService {
   }
 
   Future<void> speak(String text) async {
-    if (text.isEmpty || !_isTtsEnabled) return;
+    if (text.isEmpty || !isTtsEnabled) return;
 
     _isSpeaking = true;
     try {
@@ -167,7 +164,7 @@ class SpeechService {
 
   Future<bool> stopSpeaking({bool andDisable = false}) async {
     if (andDisable) {
-      _isTtsEnabled = false;
+      isTtsEnabled = false;
     }
 
     if (_isSpeaking) {
@@ -187,11 +184,11 @@ class SpeechService {
   }
 
   bool toggleTts() {
-    _isTtsEnabled = !_isTtsEnabled;
-    if (!_isTtsEnabled && _isSpeaking) {
+    isTtsEnabled = !isTtsEnabled;
+    if (!isTtsEnabled && _isSpeaking) {
       stopSpeaking();
     }
-    return _isTtsEnabled;
+    return isTtsEnabled;
   }
 
   Future<void> startListening(Function(String) onResult) async {
