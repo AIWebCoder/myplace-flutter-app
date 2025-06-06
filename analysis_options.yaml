@@ -1,7 +1,7 @@
 
 analyzer:
   errors:
-    avoid_print: ignore ignore
+    avoid_print: ignore ignore ignore
     file_names: ignore
     sized_box_for_whitespace: ignore
 include: package:flutter_lints/flutter.yaml

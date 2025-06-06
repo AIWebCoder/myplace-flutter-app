@@ -3,19 +3,21 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:x_place/auth/loginPage.dart';
 import 'package:x_place/home/bottom_bar_screen.dart';
-// import 'package:x_place/socialMedia/profileScreen.dart';
-// import 'package:x_place/socialMedia/tab_screens/discover_screen.dart';
 import 'package:x_place/utils/appRoutes.dart';
-// import 'package:x_place/utils/const.dart';
 import 'package:x_place/utils/theme.dart';
 import 'package:provider/provider.dart';
 import 'package:x_place/services/auth.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized(); 
+  await dotenv.load();  
+
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => Auth()),
+        // Add other providers if needed
       ],
       child: const MyApp(),
     ),
@@ -47,7 +49,7 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _checkAuthAndNavigate();
+    Future.delayed(Duration(milliseconds: 100), _checkAuthAndNavigate);
   }
 
   void _checkAuthAndNavigate() async {

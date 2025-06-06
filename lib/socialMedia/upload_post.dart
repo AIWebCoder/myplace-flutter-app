@@ -1,3 +1,5 @@
+// ignore_for_file: avoid_print
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
@@ -38,7 +40,7 @@ class _UploadPostScreenState extends State<UploadPostScreen> {
     authProvider = Provider.of<Auth>(context, listen: false);
     token = authProvider.token!;
   }
-  
+
   @override
   void dispose() {
     titleController.dispose();
@@ -50,7 +52,7 @@ class _UploadPostScreenState extends State<UploadPostScreen> {
   Options _dioOptions() => Options(
     headers: {
       "Content-Type": "multipart/form-data",
-      'Authorization': 'Bearer $token',
+      "Authorization": "Bearer $token",
     },
   );
 
@@ -69,6 +71,15 @@ class _UploadPostScreenState extends State<UploadPostScreen> {
 
   Future<void> uploadPost(PlatformFile file) async {
     try {
+      // Show a loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+
       final formData = FormData.fromMap({
         "file": await MultipartFile.fromFile(file.path!, filename: file.name),
       });
@@ -79,57 +90,36 @@ class _UploadPostScreenState extends State<UploadPostScreen> {
         options: _dioOptions(),
       );
 
+      // Dismiss loading dialog
+      Navigator.of(context, rootNavigator: true).pop();
+
       final attachmentID = response.data['attachmentID'];
+
       if (response.statusCode == 200 && attachmentID != null) {
         setState(() => fileId = attachmentID);
-        print('✅ Uploaded. File ID: $fileId');
-        showDialog(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: Text("Upload Successful"),
-            content: Text("File uploaded successfully. ID: $fileId"),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text("OK"),
-              )
-            ],
-          ),
-        );
+        print('✅ Upload successful. File ID: $fileId');
+        _showSuccessDialog("Upload Complete", "Your video has been uploaded.");
       } else {
-        _showErrorDialog("Upload failed with status: ${response.statusCode}");
+        _showErrorDialog("Upload Failed", "Server responded with status ${response.statusCode}.");
       }
     } catch (e) {
-     _showErrorDialog("Upload error: $e");
+      // Dismiss loading dialog in case of error
+      Navigator.of(context, rootNavigator: true).pop();
+
+      _showErrorDialog("Upload Error", "An error occurred while uploading: $e");
     }
   }
-  
-  void _showErrorDialog(String message) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text("Error"),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text("Close"),
-          )
-        ],
-      ),
-    );
-  }
-  
+
   Future<void> savePost() async {
     if (fileId == null || pickedFile == null) {
-      print("⚠️ Please upload a file first.");
+      _showErrorDialog("Missing File", "Please upload a video before saving the post.");
       return;
     }
 
     try {
       final formData = FormData.fromMap({
-        "attachments[0][attachmentID]": fileId ,
-        "attachments[0][type]": "video",  
+        "attachments[0][attachmentID]": fileId,
+        "attachments[0][type]": "video",
         "attachments[0][path]": "$baseUrl/storage/posts/videos/$fileId.mp4",
         "attachments[0][thumbnail]": "$baseUrl/storage/posts/videos/thumbnails/$fileId.mp4",
         "text": titleController.text,
@@ -139,48 +129,67 @@ class _UploadPostScreenState extends State<UploadPostScreen> {
         "post_type": 0,
       });
 
-      final response = await DioClient.dio.post( 
-        '/posts/save',  
+      final response = await DioClient.dio.post(
+        '/posts/save',
         data: formData,
         options: _dioOptions(),
       );
 
-      print("📥 Raw response: ${response.data}");
+      print("📥 Server response: ${response.data}");
 
       if (response.statusCode == 200) {
-        print("✅ Post saved successfully.");
-
-        showDialog(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: Text("Success"),
-            content: Text("Your post has been saved successfully."),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context); // Close dialog
-                  Navigator.pop(context); // Go back to bottom bar screen
-                },
-                child: Text("OK"),
-              )
-            ],
-          ),
-        );
+        _showSuccessDialog("Post Published", "Your post has been successfully saved." , popScreenAfter: true);
       } else {
-        _showErrorDialog("Failed to save post: ${response.statusCode}");
+        _showErrorDialog("Save Failed", "Server responded with status ${response.statusCode}.");
       }
     } catch (e) {
       if (e is DioException) {
         print("❌ DioException: ${e.response?.statusCode}");
-        print("📥 Server response: ${e.response?.data}");
-        _showErrorDialog("Server error: ${e.response?.data ?? 'Unknown'}");
+        _showErrorDialog("Save Error", "Server responded with: ${e.response?.data ?? 'Unknown error'}");
       } else {
         print("❌ Unexpected error: $e");
-        _showErrorDialog("Unexpected error: $e");
+        _showErrorDialog("Unexpected Error", "$e");
       }
     }
   }
 
+  void _showSuccessDialog(String title, String message, {bool popScreenAfter = false}) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              if (popScreenAfter) {
+                Navigator.of(context).pop(); 
+              }
+            },
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showErrorDialog(String title, String message) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -212,13 +221,13 @@ class _UploadPostScreenState extends State<UploadPostScreen> {
               buildTextField("Tags", "Ajouter des tags...", tagsController),
               const SizedBox(height: 10),
               buildGenreDropdown(),
-              buildToggle("Vidéo 360°", is360, (val) => setState(() => is360 = val)),
+              buildToggle( "Vidéo 360°", is360, (val) => setState(() => is360 = val)),
               buildToggle("Vidéo à la une", isFeatured, (val) => setState(() => isFeatured = val)),
               const SizedBox(height: 10),
-              const Text("Type", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              const Text("Type", style: TextStyle( color: Colors.white, fontWeight: FontWeight.bold)),
               buildToggle("Abonnement", isSubscription, (val) => setState(() => isSubscription = val)),
               buildToggle("Achat unique", isOneTimePurchase, (val) => setState(() => isOneTimePurchase = val)),
-              buildToggle("Gratuit", isFree, (val) => setState(() => isFree = val)),
+              buildToggle( "Gratuit", isFree, (val) => setState(() => isFree = val)),
               const SizedBox(height: 20),
               button('Publish', savePost, primaryColor),
             ],
@@ -228,13 +237,16 @@ class _UploadPostScreenState extends State<UploadPostScreen> {
     );
   }
 
-  Widget buildTextField(String label, String hint, TextEditingController controller) {
+  Widget buildTextField(
+      String label, String hint, TextEditingController controller) {
     return Padding(
       padding: const EdgeInsets.only(top: 15),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          Text(label,
+              style: const TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.bold)),
           const SizedBox(height: 5),
           TextField(
             controller: controller,
@@ -244,7 +256,8 @@ class _UploadPostScreenState extends State<UploadPostScreen> {
               hintStyle: const TextStyle(color: Colors.white70),
               filled: true,
               fillColor: Colors.grey[900],
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              border:
+                  OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
             ),
           ),
         ],
@@ -270,10 +283,12 @@ class _UploadPostScreenState extends State<UploadPostScreen> {
           dropdownColor: Colors.grey[900],
           value: selectedGenre,
           isExpanded: true,
-          hint: const Text("Sélectionnez un genre", style: TextStyle(color: Colors.white70)),
+          hint: const Text("Sélectionnez un genre",
+              style: TextStyle(color: Colors.white70)),
           style: const TextStyle(color: Colors.white),
           items: ["Action", "Comédie", "Drame", "Autre"]
-              .map((genre) => DropdownMenuItem(value: genre, child: Text(genre)))
+              .map(
+                  (genre) => DropdownMenuItem(value: genre, child: Text(genre)))
               .toList(),
           onChanged: (value) => setState(() => selectedGenre = value),
         ),

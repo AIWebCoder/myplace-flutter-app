@@ -545,7 +545,7 @@ class _LandingPageState extends State<LandingPage> with TickerProviderStateMixin
                           items: [6, 1, 9, 7].map((i) {
                             return GestureDetector(
                                 onTap: () {
-                                  AppRoutes.push(context, VideoDetailScreen());
+                                  // AppRoutes.push(context, VideoDetailScreen());
                                 },
                                 child: Stack(
                                   children: [
@@ -706,7 +706,7 @@ class _LandingPageState extends State<LandingPage> with TickerProviderStateMixin
         itemBuilder: (context, index) {
           return GestureDetector(
             onTap: () {
-              AppRoutes.push(context, VideoDetailScreen());
+              // AppRoutes.push(context, VideoDetailScreen());
             },
             child: Container(
               margin: const EdgeInsets.only(right: 12),
@@ -735,7 +735,7 @@ class _LandingPageState extends State<LandingPage> with TickerProviderStateMixin
         itemBuilder: (context, index) {
           return GestureDetector(
             onTap: () {
-              AppRoutes.push(context, VideoDetailScreen());
+              // AppRoutes.push(context, VideoDetailScreen());
             },
             child: Stack(
               children: [
@@ -813,7 +813,7 @@ class _LandingPageState extends State<LandingPage> with TickerProviderStateMixin
         itemBuilder: (context, index) {
           return GestureDetector(
             onTap: () {
-              AppRoutes.push(context, VideoDetailScreen());
+              // AppRoutes.push(context, VideoDetailScreen());
             },
             child: Stack(
               children: [
@@ -869,7 +869,7 @@ class _LandingPageState extends State<LandingPage> with TickerProviderStateMixin
         itemBuilder: (context, index) {
           return GestureDetector(
             onTap: () {
-              AppRoutes.push(context, VideoDetailScreen());
+              // AppRoutes.push(context, VideoDetailScreen());
             },
             child: Stack(
               children: [

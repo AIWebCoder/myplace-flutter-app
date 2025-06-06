@@ -1,4 +1,6 @@
 // ignore: library_prefixes
+// ignore_for_file: avoid_print
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:x_place/services/dio.dart';
@@ -8,24 +10,26 @@ import 'dart:convert'; // for json encode/decode
 class Auth extends ChangeNotifier {
   bool _isLoggedIn = false;
   String? _token;
+  Map<String, dynamic>? _user;
 
   bool get authenticated => _isLoggedIn;
   String? get token => _token;
+  Map<String, dynamic>? get user => _user;
 
   Future<void> initAuth() async {
     const secureStorage = FlutterSecureStorage();
     _token = await secureStorage.read(key: 'token');
-    // ignore: avoid_print
-    print('stored token in initAuth: $_token');
-    // ignore: avoid_print
-    print('${_token != null}');
-
+    
     if (_token != null) {
       _isLoggedIn = true;
+
+      final storedUser = await secureStorage.read(key: 'user');
+      if (storedUser != null) {
+        _user = jsonDecode(storedUser);
+      }
     }
+
     notifyListeners();
-    // ignore: avoid_print
-    print('auth.authenticated in initAuth: $authenticated');
   }
 
   Future<dynamic> login({Map? creds}) async {

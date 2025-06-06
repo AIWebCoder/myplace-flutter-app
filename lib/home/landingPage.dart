@@ -18,8 +18,7 @@ class LandingPage extends StatefulWidget {
   State<LandingPage> createState() => _LandingPageState();
 }
 
-class _LandingPageState extends State<LandingPage>
-    with TickerProviderStateMixin {
+class _LandingPageState extends State<LandingPage> with TickerProviderStateMixin {
   bool menuShown = false;
   double appbarHeight = 80.0;
   double menuHeight = 0.0;
@@ -643,11 +642,9 @@ class _LandingPageState extends State<LandingPage>
                   left: 0,
                   right: 10,
                   child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                     decoration: BoxDecoration(
-                      color: Colors.black
-                          .withValues(alpha: (0.5 * 255).toDouble()),
+                      color: Colors.black.withValues(alpha: (0.5 * 255).toDouble()),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
